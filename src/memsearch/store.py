@@ -96,10 +96,7 @@ class MilvusStore:
             "collection_name": self.COLLECTION,
             "data": [query_embedding],
             "limit": top_k,
-            "output_fields": [
-                "content", "source", "heading", "chunk_hash",
-                "heading_level", "start_line", "end_line", "doc_type",
-            ],
+            "output_fields": self._QUERY_FIELDS,
         }
         if filter_expr:
             kwargs["filter"] = filter_expr
@@ -110,6 +107,21 @@ class MilvusStore:
             {**hit["entity"], "score": hit["distance"]}
             for hit in results[0]
         ]
+
+    _QUERY_FIELDS = [
+        "content", "source", "heading", "chunk_hash",
+        "heading_level", "start_line", "end_line", "doc_type",
+    ]
+
+    def query(self, *, filter_expr: str = "") -> list[dict[str, Any]]:
+        """Retrieve chunks by scalar filter (no vector needed)."""
+        kwargs: dict[str, Any] = {
+            "collection_name": self.COLLECTION,
+            "output_fields": self._QUERY_FIELDS,
+        }
+        if filter_expr:
+            kwargs["filter"] = filter_expr
+        return self._client.query(**kwargs)
 
     def delete_by_source(self, source: str) -> None:
         """Delete all chunks from a given source file."""

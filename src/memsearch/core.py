@@ -197,12 +197,7 @@ class MemSearch:
             The generated summary markdown.
         """
         filter_expr = f'source == "{source}"' if source else ""
-        # Retrieve all chunks (use a dummy search with high top_k)
-        # For a proper implementation we'd iterate, but this is practical
-        dummy_emb = [0.0] * self._embedder.dimension
-        all_chunks = self._store.search(
-            dummy_emb, top_k=10000, filter_expr=filter_expr
-        )
+        all_chunks = self._store.query(filter_expr=filter_expr)
         if not all_chunks:
             return ""
 
