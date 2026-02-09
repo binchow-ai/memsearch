@@ -30,7 +30,12 @@ class MemSearch:
     embedding_model:
         Override the default model for the chosen provider.
     milvus_uri:
-        Milvus connection URI (defaults to local Milvus Lite file).
+        Milvus connection URI.  A local ``*.db`` path uses Milvus Lite,
+        ``http://host:port`` connects to a Milvus server, and a
+        ``https://*.zillizcloud.com`` URL connects to Zilliz Cloud.
+    milvus_token:
+        Authentication token for Milvus server or Zilliz Cloud.
+        Not needed for Milvus Lite (local).
     cache_path:
         Path to the SQLite embedding cache.
     """
@@ -42,13 +47,16 @@ class MemSearch:
         embedding_provider: str = "openai",
         embedding_model: str | None = None,
         milvus_uri: str = "~/.memsearch/milvus.db",
+        milvus_token: str | None = None,
         cache_path: str = "~/.memsearch/cache.db",
     ) -> None:
         self._paths = [str(p) for p in (paths or [])]
         self._embedder: EmbeddingProvider = get_provider(
             embedding_provider, model=embedding_model
         )
-        self._store = MilvusStore(uri=milvus_uri, dimension=self._embedder.dimension)
+        self._store = MilvusStore(
+            uri=milvus_uri, token=milvus_token, dimension=self._embedder.dimension
+        )
         self._cache = EmbeddingCache(db_path=cache_path)
 
     # ------------------------------------------------------------------

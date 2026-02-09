@@ -15,13 +15,18 @@ class MilvusStore:
         self,
         uri: str = "~/.memsearch/milvus.db",
         *,
+        token: str | None = None,
         dimension: int = 1536,
     ) -> None:
         from pymilvus import MilvusClient
 
         resolved = str(Path(uri).expanduser()) if not uri.startswith(("http", "tcp")) else uri
-        Path(resolved).parent.mkdir(parents=True, exist_ok=True) if not uri.startswith(("http", "tcp")) else None
-        self._client = MilvusClient(uri=resolved)
+        if not uri.startswith(("http", "tcp")):
+            Path(resolved).parent.mkdir(parents=True, exist_ok=True)
+        connect_kwargs: dict[str, Any] = {"uri": resolved}
+        if token:
+            connect_kwargs["token"] = token
+        self._client = MilvusClient(**connect_kwargs)
         self._dimension = dimension
         self._ensure_collection()
 
