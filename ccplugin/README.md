@@ -171,23 +171,25 @@ Each file contains session summaries in plain markdown:
 | | 🧠 memsearch | claude-mem |
 |---|---|---|
 | **Architecture** | 🪶 4 shell hooks + 1 watch process — that's it | Node.js/Bun Worker service + Express server + React UI |
-| **Integration** | 🔧 Native hooks + CLI — no network overhead | MCP server — every call is a network round-trip, eats context window |
-| **Prompt-level recall** | ✅ Semantic search on **every prompt** | ❌ Only at SessionStart |
-| **Progressive disclosure** | 🔍 **3-layer**: auto-inject → expand chunk → transcript drill-down | Single-level recall |
-| **Session summary** | 💰 `claude -p --model haiku` — one cheap call, runs async | Claude API calls for **every** tool observation — expensive at scale |
-| **Vector backend** | 🚀 **Milvus** — hybrid search (dense + BM25), scales from embedded to distributed cluster | Chroma — dense only, local-only, no scaling path |
+| **Integration** | 🔧 Native hooks + CLI — zero IPC overhead | MCP server (stdio) — tool definitions permanently consume context window |
+| **Memory recall** | ✅ **Automatic** — semantic search on every prompt via hook | 🔧 **Agent-driven** — Claude must explicitly call MCP `search` tool |
+| **Progressive disclosure** | 🔍 **3-layer, auto-triggered**: hook injects top-k → `expand` → `transcript` drill-down | 🔍 **3-layer, all manual**: `search` → `timeline` → `get_observations` (all require explicit tool calls) |
+| **Session summary** | 💰 `claude -p --model haiku` — one cheap call, runs async | 💸 Observation on every tool use + session summary — more API calls at scale |
+| **Vector backend** | 🚀 **Milvus** — hybrid search (dense + BM25), scales from embedded to distributed cluster | Chroma — dense only, limited scaling path |
 | **Storage format** | 📝 Transparent `.md` files — human-readable, git-friendly | Opaque SQLite + Chroma binary |
-| **Index sync** | 🔄 `memsearch watch` singleton — auto-debounced background sync | Manual index calls scattered across hooks |
+| **Index sync** | 🔄 `memsearch watch` singleton — auto-debounced background sync | Automatic observation writes via hooks, but no unified background sync |
 | **Data portability** | 📦 Copy `.memsearch/memory/*.md` — done | Export from SQLite + Chroma |
 | **Runtime dependency** | Python (`memsearch` CLI) + `claude` CLI | Node.js + Bun + MCP runtime |
-| **Context window cost** | 🪶 Minimal — hook injects only top-k results | 🏋️ MCP tool definitions + call results consume significant context |
+| **Context window cost** | 🪶 Minimal — hook injects only top-k results as plain text | 🏋️ MCP tool definitions always loaded + each tool call/result consumes context |
 | **Cost per session** | 💵 ~1 Haiku call for summary | 💸 Multiple Claude API calls for observation compression |
 
 ### 🏗️ Key design differences
 
-**memsearch** is **lightweight by design**: shell hooks → CLI → markdown → Milvus. No MCP servers consuming context window, no background services requiring ports, no opaque binary databases. The entire system is auditable by reading a handful of shell scripts and `.md` files.
+The fundamental difference is **automatic vs agent-driven** memory recall:
 
-**claude-mem** takes a **full-stack approach**: MCP server + Worker service + SQLite + Chroma + React UI. Every memory operation goes through MCP, which means network round-trips and MCP tool definitions permanently occupying context window space. More feature-rich, but the complexity cost is significant.
+**memsearch** injects relevant memories into **every prompt** via hooks — Claude doesn't need to decide whether to search, it just gets the context. Progressive disclosure starts automatically (L1 via hook), and only deeper layers (L2 expand, L3 transcript) require explicit CLI calls. The architecture is **lightweight by design**: shell hooks → CLI → markdown → Milvus. No MCP servers consuming context window, no background services requiring ports, no opaque binary databases. The entire system is auditable by reading a handful of shell scripts and `.md` files.
+
+**claude-mem** gives Claude **MCP tools** to search, explore timelines, and fetch full observations — a 3-layer system as well, but all three layers require Claude to **proactively decide** to invoke them. This is more flexible (Claude controls when and what to recall) but means memories are only retrieved when Claude thinks to ask, and MCP tool definitions permanently occupy context window space. The full-stack architecture (Worker service + SQLite + Chroma + React UI) offers richer features like a web viewer, but with significant complexity cost.
 
 ## 📂 Plugin Files
 
