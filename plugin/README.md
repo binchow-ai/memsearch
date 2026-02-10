@@ -1,4 +1,4 @@
-# memsearch — Claude Code Plugin
+# 🧠 memsearch — Claude Code Plugin
 
 **Automatic persistent memory for Claude Code.** No commands to learn, no manual saving — just install the plugin and Claude remembers what you worked on across sessions.
 
@@ -6,157 +6,17 @@
 claude --plugin-dir /path/to/memsearch/plugin
 ```
 
-## How It Works
+## 💡 Design Principles
 
-The plugin hooks into 4 Claude Code lifecycle events. A singleton `memsearch watch` process handles all indexing; hooks only read or write markdown files.
+memsearch follows two core philosophies:
 
-```
-  ┌─────────────────────────────────────────────────────────────────────────┐
-  │                    memsearch plugin lifecycle                           │
-  └─────────────────────────────────────────────────────────────────────────┘
+**🔧 Native to Claude Code** — built entirely on Claude Code's own primitives: **Hooks** for lifecycle events, **CLI** for tool access, and **Agent** for autonomous decisions. No MCP servers, no sidecar services, no extra network round-trips. Everything runs locally as shell scripts and a Python CLI, keeping latency low and context window clean.
 
-  SESSION START
-  ─────────────
-  ┌──────────────┐     ┌─────────────────┐     ┌──────────────────────────┐
-  │ SessionStart │────▶│ Start singleton │────▶│ Inject recent memories   │
-  │   hook       │     │ memsearch watch │     │ into context             │
-  └──────────────┘     │ (PID file lock) │     │ { "additionalContext" }  │
-                       └─────────────────┘     └──────────────────────────┘
-                              │
-                              ▼
-                       ┌─────────────────┐
-                       │ watch monitors  │ (background, 1500ms debounce)
-                       │ .memsearch/     │
-                       │   memory/*.md   │──── auto-index on any change
-                       └─────────────────┘
+**📝 Markdown as single source of truth** — inspired by [OpenClaw's memory architecture](https://docs.openclaw.ai/concepts/memory). All knowledge lives in plain `.md` files — human-readable, `git`-friendly, trivially portable. The vector index (Milvus) is a **derived cache** that can be rebuilt from markdown at any time. No opaque databases, no binary blobs, no vendor lock-in.
 
-  EVERY USER PROMPT
-  ─────────────────
-  ┌──────────────────┐     ┌─────────────────┐     ┌────────────────────┐
-  │ UserPromptSubmit │────▶│ memsearch search │────▶│ Inject top-3       │
-  │   hook           │     │ "$user_prompt"   │     │ relevant memories  │
-  └──────────────────┘     │ --top-k 3        │     └────────────────────┘
-                           └─────────────────┘
-                           (skip if < 10 chars)
+The result: a memory system that's **simple enough to understand in 5 minutes**, yet powerful enough for production use with hybrid search (dense + BM25) and three-layer progressive disclosure.
 
-  WHEN CLAUDE FINISHES RESPONDING
-  ────────────────────────────────
-  ┌──────────┐     ┌──────────────────────┐     ┌──────────────────────┐
-  │  Stop    │────▶│ Agent subagent runs  │────▶│ Write AI summary to  │
-  │ (agent   │     │ parse-transcript.sh  │     │ .memsearch/memory/   │
-  │  hook)   │     │ (truncate + format)  │     │ YYYY-MM-DD.md        │
-  └──────────┘     └──────────────────────┘     └──────────────────────┘
-                                                  │
-                                                  └──▶ watch detects change
-                                                       → auto-indexes
-
-  SESSION END
-  ───────────
-  ┌──────────────┐
-  │ SessionEnd   │──── stop watch process (cleanup)
-  └──────────────┘
-```
-
-### Hook Summary
-
-| Hook | Type | Timeout | What it does |
-|------|------|---------|-------------|
-| **SessionStart** | command | 10s | Start `memsearch watch` singleton + inject recent memories |
-| **UserPromptSubmit** | command | 15s | Semantic search on user prompt → inject relevant memories |
-| **Stop** | agent | 60s | Parse transcript → AI summary → write to daily `.md` log |
-| **SessionEnd** | command | 10s | Stop the `memsearch watch` process |
-
-### Long session protection
-
-Transcript parsing is handled by `parse-transcript.sh` — a deterministic bash script, not AI prompt instructions. The subagent calls it and receives clean, bounded output.
-
-The script applies these rules:
-
-- Each user/assistant message exceeding **500 chars** → truncated to **last 500 chars** (tail is more informative — final decisions, conclusions, results)
-- Tool calls → **tool name + one-line input summary** (skip full input/output)
-- Tool results → **one-line truncated preview**
-- `file-history-snapshot` entries → **skipped entirely**
-- Transcript exceeding **200 lines** → only the **last 200 lines** are processed
-
-Limits are configurable via environment variables: `MEMSEARCH_MAX_LINES` (default 200), `MEMSEARCH_MAX_CHARS` (default 500).
-
-## Memory Storage
-
-All memories live in **`.memsearch/memory/`** inside your project directory:
-
-```
-your-project/
-└── .memsearch/
-    ├── .watch.pid        ← singleton watcher PID
-    └── memory/
-        ├── 2026-02-07.md
-        ├── 2026-02-08.md
-        └── 2026-02-09.md    ← today's session summaries
-```
-
-Each file contains session summaries in plain markdown:
-
-```markdown
-## Session 14:30
-- Implemented caching system with Redis L1 and in-process LRU L2
-- Fixed N+1 query issue in order-service using selectinload
-- Decided to use Prometheus counters for cache hit/miss metrics
-
-## Session 17:45
-- Debugged React hydration mismatch — Date.now() during SSR
-- Added comprehensive test suite for the caching middleware
-```
-
-**Markdown is the source of truth.** The Milvus vector index is a derived cache that can be rebuilt at any time with `memsearch index .memsearch/memory/`.
-
-## memsearch plugin vs claude-mem
-
-| | memsearch plugin | claude-mem |
-|---|---|---|
-| **Prompt-level recall** | Semantic search on **every prompt** | Only at SessionStart |
-| **Session summary** | **Agent hook subagent** — zero extra API calls, no background service | Separate Worker service (port 37777) + Anthropic Agent SDK API calls |
-| **Index maintenance** | **`memsearch watch` singleton** — one process, auto-debounced | Manual index calls scattered across hooks |
-| **Storage format** | **Transparent `.md` files** — human-readable, git-friendly | Opaque SQLite + Chroma binary |
-| **Architecture** | 4 hooks + 1 watch process, ~300 lines total | Node.js/Bun Worker service + Express server + React UI |
-| **Runtime dependency** | Python (`memsearch` CLI) | Node.js + Bun runtime |
-| **Vector backend** | **Milvus** (Lite → Server → Zilliz Cloud) | Chroma (local only) |
-| **Background processes** | **1 watch** (lightweight file watcher) | Worker service (Express + Agent SDK) |
-| **Temp files** | **None** — reads transcript via `$ARGUMENTS` | `session.log` intermediate state |
-| **Data portability** | Copy `.memsearch/memory/*.md` — that's it | Export from SQLite + Chroma |
-| **Cost** | **Zero** extra LLM calls (agent hook is free) | Claude API calls for observation compression |
-
-### Key design differences
-
-**memsearch** takes a **minimalist, Unix-philosophy approach**: a singleton file watcher handles indexing, hooks are small stateless scripts that read or write markdown. The only "smart" part is the Stop agent hook, which leverages Claude's built-in subagent to generate session summaries at zero cost.
-
-**claude-mem** takes a **full-stack approach**: a Worker service compresses every tool observation into structured data via Claude API calls, stores them in SQLite + Chroma with FTS5 full-text indexes, and provides a React web UI for browsing memories. More powerful for heavy use, but significantly more complex.
-
-## Plugin Files
-
-```
-plugin/
-├── plugin.json               # Plugin manifest
-└── hooks/
-    ├── hooks.json             # Hook definitions (4 hooks)
-    ├── common.sh              # Shared setup: env, memsearch detection, watch management
-    ├── session-start.sh       # Start watch singleton + inject recent memories
-    ├── user-prompt-submit.sh  # Semantic search on prompt → inject relevant memories
-    ├── parse-transcript.sh    # Deterministic JSONL→text parser with truncation
-    └── session-end.sh         # Stop watch process
-```
-
-## Prerequisites
-
-- **memsearch** CLI in PATH — install via:
-  ```bash
-  pip install memsearch
-  # or
-  uv tool install memsearch
-  ```
-- **jq** — for JSON parsing in hook scripts (pre-installed on most systems)
-- A configured memsearch backend (`.memsearch.toml` or `~/.memsearch/config.toml`)
-
-## Quick Start
+## 🚀 Quick Start
 
 ```bash
 # 1. Install memsearch
@@ -175,17 +35,207 @@ cat .memsearch/memory/$(date +%Y-%m-%d).md
 claude --plugin-dir /path/to/memsearch/plugin
 ```
 
-## Troubleshooting
+## ⚙️ How It Works
 
-**Memories not being injected?**
-- Check that `.memsearch/memory/` exists and has `.md` files
-- Verify `memsearch search "test query"` works from the command line
-- Ensure `jq` is installed: `jq --version`
+The plugin hooks into 4 Claude Code lifecycle events. A singleton `memsearch watch` process keeps the vector index in sync with markdown files in the background.
 
-**Watch not running?**
-- Check: `cat .memsearch/.watch.pid && ps -p $(cat .memsearch/.watch.pid)`
-- Start manually: `memsearch watch .memsearch/memory/`
+```
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                  🔄 memsearch plugin lifecycle                         │
+  └─────────────────────────────────────────────────────────────────────────┘
 
-**Stop hook not writing summaries?**
-- The agent hook subagent needs Read/Write/Bash tool access
-- If it doesn't work, session summaries won't be auto-generated, but search still functions
+  🟢 SESSION START
+  ─────────────
+  ┌──────────────┐     ┌─────────────────┐     ┌──────────────────────────┐
+  │ SessionStart │────▶│ Start singleton │────▶│ Write session heading    │
+  │   hook       │     │ memsearch watch │     │ to today's memory .md    │
+  └──────────────┘     │ (PID file lock) │     └──────────────────────────┘
+                       └─────────────────┘              │
+                              │                         ▼
+                              ▼                  ┌──────────────────────────┐
+                       ┌─────────────────┐       │ Inject recent memories + │
+                       │ watch monitors  │       │ Memory Tools instructions│
+                       │ .memsearch/     │       │ { "additionalContext" }  │
+                       │   memory/*.md   │       └──────────────────────────┘
+                       └─────────────────┘
+                       (background, 1500ms debounce, auto-sync on change)
+
+  💬 EVERY USER PROMPT
+  ─────────────────
+  ┌──────────────────┐     ┌─────────────────┐     ┌────────────────────┐
+  │ UserPromptSubmit │────▶│ memsearch search │────▶│ Inject top-3       │
+  │   hook           │     │ "$user_prompt"   │     │ relevant memories  │
+  └──────────────────┘     │ --top-k 3        │     │ + chunk_hash IDs   │
+                           └─────────────────┘     └────────────────────┘
+                           (skip if < 10 chars)
+
+  🛑 WHEN CLAUDE FINISHES RESPONDING
+  ────────────────────────────────
+  ┌──────────┐     ┌──────────────────────┐     ┌──────────────────────┐
+  │  Stop    │────▶│ parse-transcript.sh  │────▶│ claude -p --model    │
+  │(command, │     │ (truncate + format)  │     │ haiku summarizes     │
+  │  async)  │     └──────────────────────┘     └──────────────────────┘
+  └──────────┘                                    │
+                                                  ▼
+                                           ┌──────────────────────┐
+                                           │ Append summary with  │
+                                           │ session/turn anchors │
+                                           │ to YYYY-MM-DD.md     │
+                                           └──────────────────────┘
+                                                  │
+                                                  └──▶ watch detects change
+                                                       → auto-sync
+
+  👋 SESSION END
+  ───────────
+  ┌──────────────┐
+  │ SessionEnd   │──── stop watch process (cleanup)
+  └──────────────┘
+```
+
+### 🪝 Hook Summary
+
+| Hook | Type | What it does |
+|------|------|-------------|
+| **SessionStart** | command | Start `memsearch watch` singleton + write session heading + inject recent memories & Memory Tools |
+| **UserPromptSubmit** | command | Semantic search on user prompt → inject relevant memories with `chunk_hash` |
+| **Stop** | command (async) | Parse transcript → `claude -p --model haiku` summary → write to daily `.md` with session anchors |
+| **SessionEnd** | command | Stop the `memsearch watch` process |
+
+## 🔍 Progressive Disclosure
+
+Memory retrieval uses a three-layer progressive disclosure model. The main Claude agent decides when to drill deeper.
+
+```
+  L1: 📋 Auto-injected (UserPromptSubmit hook)
+  ──────────────────────────────────────────
+  Every prompt → top-k search results with chunk_hash + 200-char preview
+
+  L2: 📖 On-demand expand (memsearch expand)
+  ──────────────────────────────────────────
+  Agent runs: memsearch expand <chunk_hash>
+  → Full markdown section + session/turn anchor metadata
+
+  L3: 💬 Transcript drill-down (memsearch transcript)
+  ──────────────────────────────────────────
+  Agent runs: memsearch transcript <jsonl_path> --turn <uuid> --context 3
+  → Original conversation turns from the JSONL transcript
+```
+
+Each memory summary includes an HTML comment anchor:
+```markdown
+### 14:30
+<!-- session:abc123 turn:def456 transcript:/path/to/session.jsonl -->
+- Implemented caching system with Redis L1 and in-process LRU L2
+```
+
+The anchor links the chunk back to its source session, enabling L2→L3 drill-down.
+
+## 📁 Memory Storage
+
+All memories live in **`.memsearch/memory/`** inside your project directory:
+
+```
+your-project/
+└── .memsearch/
+    ├── .watch.pid        ← singleton watcher PID
+    └── memory/
+        ├── 2026-02-07.md
+        ├── 2026-02-08.md
+        └── 2026-02-09.md    ← today's session summaries
+```
+
+Each file contains session summaries in plain markdown:
+
+```markdown
+## Session 14:30
+
+### 14:30
+<!-- session:abc123 turn:def456 transcript:/home/user/.claude/projects/.../abc123.jsonl -->
+- Implemented caching system with Redis L1 and in-process LRU L2
+- Fixed N+1 query issue in order-service using selectinload
+- Decided to use Prometheus counters for cache hit/miss metrics
+
+## Session 17:45
+
+### 17:45
+<!-- session:ghi789 turn:jkl012 transcript:/home/user/.claude/projects/.../ghi789.jsonl -->
+- Debugged React hydration mismatch — Date.now() during SSR
+- Added comprehensive test suite for the caching middleware
+```
+
+**📝 Markdown is the source of truth.** The Milvus vector index is a derived cache that can be rebuilt at any time with `memsearch index .memsearch/memory/`.
+
+## ⚖️ memsearch vs claude-mem
+
+| | 🧠 memsearch | claude-mem |
+|---|---|---|
+| **Architecture** | 🪶 4 shell hooks + 1 watch process — that's it | Node.js/Bun Worker service + Express server + React UI |
+| **Integration** | 🔧 Native hooks + CLI — no network overhead | MCP server — every call is a network round-trip, eats context window |
+| **Prompt-level recall** | ✅ Semantic search on **every prompt** | ❌ Only at SessionStart |
+| **Progressive disclosure** | 🔍 **3-layer**: auto-inject → expand chunk → transcript drill-down | Single-level recall |
+| **Session summary** | 💰 `claude -p --model haiku` — one cheap call, runs async | Claude API calls for **every** tool observation — expensive at scale |
+| **Vector backend** | 🚀 **Milvus** — hybrid search (dense + BM25), scales from embedded to distributed cluster | Chroma — dense only, local-only, no scaling path |
+| **Storage format** | 📝 Transparent `.md` files — human-readable, git-friendly | Opaque SQLite + Chroma binary |
+| **Index sync** | 🔄 `memsearch watch` singleton — auto-debounced background sync | Manual index calls scattered across hooks |
+| **Data portability** | 📦 Copy `.memsearch/memory/*.md` — done | Export from SQLite + Chroma |
+| **Runtime dependency** | Python (`memsearch` CLI) + `claude` CLI | Node.js + Bun + MCP runtime |
+| **Context window cost** | 🪶 Minimal — hook injects only top-k results | 🏋️ MCP tool definitions + call results consume significant context |
+| **Cost per session** | 💵 ~1 Haiku call for summary | 💸 Multiple Claude API calls for observation compression |
+
+### 🏗️ Key design differences
+
+**memsearch** is **lightweight by design**: shell hooks → CLI → markdown → Milvus. No MCP servers consuming context window, no background services requiring ports, no opaque binary databases. The entire system is auditable by reading a handful of shell scripts and `.md` files.
+
+**claude-mem** takes a **full-stack approach**: MCP server + Worker service + SQLite + Chroma + React UI. Every memory operation goes through MCP, which means network round-trips and MCP tool definitions permanently occupying context window space. More feature-rich, but the complexity cost is significant.
+
+## 📂 Plugin Files
+
+```
+plugin/
+├── .claude-plugin/
+│   └── plugin.json              # Plugin manifest
+└── hooks/
+    ├── hooks.json               # Hook definitions (4 hooks)
+    ├── common.sh                # Shared setup: env, PATH, memsearch detection, watch management
+    ├── session-start.sh         # Start watch + write session heading + inject memories & tools
+    ├── user-prompt-submit.sh    # Semantic search on prompt → inject memories with chunk_hash
+    ├── stop.sh                  # Parse transcript → haiku summary → append to daily .md
+    ├── parse-transcript.sh      # Deterministic JSONL→text parser with truncation
+    └── session-end.sh           # Stop watch process
+```
+
+## 🛠️ CLI Commands for Progressive Disclosure
+
+The `memsearch` CLI provides two commands for deeper context retrieval:
+
+### `memsearch expand <chunk_hash>`
+
+Look up a chunk by hash in the Milvus index and display the full markdown section around it.
+
+```bash
+# Show full section
+memsearch expand abc123def456
+
+# JSON output with anchor metadata (session/turn/transcript path)
+memsearch expand abc123def456 --json-output
+
+# Show N lines before/after instead of full section
+memsearch expand abc123def456 --lines 10
+```
+
+### `memsearch transcript <jsonl_path>`
+
+Parse a Claude Code JSONL transcript and display conversation turns.
+
+```bash
+# Show index of all turns
+memsearch transcript /path/to/session.jsonl
+
+# Show context around a specific turn (prefix match on UUID)
+memsearch transcript /path/to/session.jsonl --turn bffc0c1b --context 3
+
+# JSON output
+memsearch transcript /path/to/session.jsonl --turn bffc0c1b --json-output
+```
+

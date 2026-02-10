@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # UserPromptSubmit hook: semantic search on every user prompt, inject relevant memories.
+# Returns compact index with chunk_hash + anchor metadata for progressive disclosure.
+# The main Claude agent can drill deeper with `memsearch expand` and `memsearch transcript`.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
@@ -28,10 +30,12 @@ if [ -z "$search_results" ] || [ "$search_results" = "[]" ] || [ "$search_result
   exit 0
 fi
 
-# Format results as markdown
+# Format results as compact index with chunk_hash for expand/transcript drill-down
 formatted=$(echo "$search_results" | jq -r '
-  .[]? |
-  "- [\(.source // "unknown"):\(.heading // "")]  \(.content // "" | .[0:200])"
+  to_entries | .[]? |
+  "- [\(.value.source // "unknown"):\(.value.heading // "")] " +
+  " \(.value.content // "" | .[0:200])\n" +
+  "  `chunk_hash: \(.value.chunk_hash // "")`"
 ' 2>/dev/null || true)
 
 if [ -z "$formatted" ]; then
@@ -41,4 +45,4 @@ fi
 
 context="## Relevant Memories\n$formatted"
 json_context=$(printf '%s' "$context" | jq -Rs .)
-echo "{\"additionalContext\": $json_context}"
+echo "{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": $json_context}}"

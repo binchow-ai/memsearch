@@ -7,6 +7,11 @@ set -euo pipefail
 # Read stdin JSON into $INPUT
 INPUT="$(cat)"
 
+# Ensure common user bin paths are in PATH (hooks may run in a minimal env)
+for p in "$HOME/.local/bin" "$HOME/.cargo/bin" "$HOME/bin" "/usr/local/bin"; do
+  [[ -d "$p" ]] && [[ ":$PATH:" != *":$p:"* ]] && export PATH="$p:$PATH"
+done
+
 # Memory directory and memsearch state directory are project-scoped
 MEMSEARCH_DIR="${CLAUDE_PROJECT_DIR:-.}/.memsearch"
 MEMORY_DIR="$MEMSEARCH_DIR/memory"
@@ -16,7 +21,8 @@ MEMSEARCH_CMD=""
 if command -v memsearch &>/dev/null; then
   MEMSEARCH_CMD="memsearch"
 elif command -v uv &>/dev/null; then
-  MEMSEARCH_CMD="uv run memsearch"
+  # Run uv from the project dir so it can find pyproject.toml
+  MEMSEARCH_CMD="uv run --project ${CLAUDE_PROJECT_DIR:-.} memsearch"
 fi
 
 # Helper: ensure memory directory exists

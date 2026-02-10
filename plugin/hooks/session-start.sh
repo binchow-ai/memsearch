@@ -8,7 +8,14 @@ source "$SCRIPT_DIR/common.sh"
 # This is the ONLY place indexing is managed — all other hooks just write .md files.
 start_watch
 
-# If memory dir doesn't exist or has no .md files, nothing to inject
+# Write session heading to today's memory file
+ensure_memory_dir
+TODAY=$(date +%Y-%m-%d)
+NOW=$(date +%H:%M)
+MEMORY_FILE="$MEMORY_DIR/$TODAY.md"
+echo -e "\n## Session $NOW\n" >> "$MEMORY_FILE"
+
+# If memory dir has no .md files (other than the one we just created), nothing to inject
 if [ ! -d "$MEMORY_DIR" ] || ! ls "$MEMORY_DIR"/*.md &>/dev/null; then
   echo '{}'
   exit 0
@@ -45,9 +52,17 @@ if [ -n "$MEMSEARCH_CMD" ]; then
   fi
 fi
 
+# Add memory tools instructions for progressive disclosure
+context+="\n## Memory Tools\n"
+context+="When injected memories above need more context, use these commands via Bash:\n"
+context+="- \`memsearch expand <chunk_hash>\` — show the full section around a memory chunk\n"
+context+="- \`memsearch expand <chunk_hash> --json-output\` — JSON output with anchor metadata for L3 drill-down\n"
+context+="- \`memsearch transcript <jsonl_path> --turn <uuid> --context 3\` — view original conversation turns from the JSONL transcript\n"
+context+="chunk_hash is shown in Relevant Memories injected on each prompt. Anchors (session/turn/transcript path) are embedded in expand output.\n"
+
 if [ -n "$context" ]; then
   json_context=$(printf '%s' "$context" | jq -Rs .)
-  echo "{\"additionalContext\": $json_context}"
+  echo "{\"hookSpecificOutput\": {\"hookEventName\": \"SessionStart\", \"additionalContext\": $json_context}}"
 else
   echo '{}'
 fi
