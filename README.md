@@ -2,14 +2,14 @@
 
 **Give your AI agents persistent memory.** Semantic memory search for markdown knowledge bases — index your markdown files, then search them using natural language.
 
-🐾 Inspired by **[OpenClaw](https://github.com/openclaw/openclaw)** — the open-source personal AI assistant platform that connects WhatsApp, Telegram, Slack, and 10+ messaging platforms into a unified AI assistant running locally on your machine, with a powerful markdown-based memory system that gives it persistent recall across sessions. memsearch extracts and packages OpenClaw's battle-tested memory layer into a **standalone, reusable library** so *any* AI agent can have the same long-term context retention.
+🦞🧠 Inspired by **[OpenClaw](https://github.com/openclaw/openclaw)** — one of the hottest open-source AI assistant projects, and for good reason: its memory system is *brilliantly* designed. **Markdown as single source of truth** — human-readable, `git`-friendly, zero vendor lock-in. Vector search is just a derived index, rebuildable anytime. This elegant simplicity is what makes it production-ready.
 
-> 💡 **Think of it as "OpenClaw's memory, but for everyone."** OpenClaw's memory system — markdown files as source of truth, vector-indexed semantic search, automatic flush consolidation — is one of the best designs for agent memory out there. memsearch makes it available as a pip-installable package, compatible with any agent framework, and backed by [Milvus](https://milvus.io/) vector database (from local Milvus Lite to fully managed Zilliz Cloud).
+> 💡 **memsearch = OpenClaw's 🦞 memory brain 🧠, packaged for everyone.** We extracted this battle-tested memory layer into a standalone library — `pip install` and go. Same markdown-first architecture, same smart chunking and dedup, now pluggable into *any* agent framework and backed by [Milvus](https://milvus.io/) (from local Milvus Lite to fully managed Zilliz Cloud).
 
 ### ✨ Why memsearch?
 
 - 🧩 **Claude Code plugin included** — Ready-to-use plugin gives Claude persistent memory across sessions — see memsearch in action instantly
-- 🐾 **OpenClaw-compatible** — Same two-layer memory architecture (`MEMORY.md` + daily `memory/YYYY-MM-DD.md` logs), same chunking strategy, same composite chunk ID format
+- 🦞 **OpenClaw-compatible** — Same two-layer memory architecture (`MEMORY.md` + daily `memory/YYYY-MM-DD.md` logs), same chunking strategy, same composite chunk ID format
 - 🔌 **Pluggable embeddings** — OpenAI, Google, Voyage, Ollama, or fully local sentence-transformers
 - 🗄️ **Flexible storage** — Milvus Lite (zero config local file) → Milvus Server → Zilliz Cloud
 - ⚡ **Smart dedup** — SHA-256 content hashing means unchanged content is never re-embedded
