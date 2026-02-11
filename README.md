@@ -9,7 +9,9 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/MemSearch.gif" alt="memsearch demo" width="600">
+  <video src="assets/MemSearch.mp4" width="600" autoplay loop muted playsinline>
+    Your browser does not support the video tag.
+  </video>
 </p>
 
 > 💡 **memsearch extracts [OpenClaw](https://github.com/openclaw/openclaw)'s memory system into a standalone library** — same markdown-first architecture, same chunking, same chunk ID format. Pluggable into *any* agent framework, backed by [Milvus](https://milvus.io/) (local Milvus Lite → Milvus Server → Zilliz Cloud). See it in action with the included **[Claude Code plugin](ccplugin/README.md)**.
