@@ -38,3 +38,8 @@ asyncio_mode = "auto"
 
 [dependency-groups]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.7.1",
+    "mkdocs-terminal>=4.8.0",
+]
