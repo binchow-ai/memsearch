@@ -42,6 +42,9 @@ if [ -n "$REQUIRED_KEY" ] && [ -z "${!REQUIRED_KEY:-}" ]; then
   KEY_MISSING=true
 fi
 
+echo -e "\n DEBUG: REQUIRED_KEY: $REQUIRED_KEY\n" >> "$MEMORY_FILE"
+echo -e "\n DEBUG: KEY_MISSING: $KEY_MISSING\n" >> "$MEMORY_FILE"
+
 # Check PyPI for newer version (2s timeout, non-blocking on failure)
 UPDATE_HINT=""
 if [ -n "$VERSION" ]; then
