@@ -68,7 +68,7 @@ NOW=$(date +%H:%M)
 MEMORY_FILE="$MEMORY_DIR/$TODAY.md"
 echo -e "\n## Session $NOW\n" >> "$MEMORY_FILE"
 
-# # Debug logging by binchow for obsidian's claudian plugin
+# # Debug logging by binchow for obsidian's claudian plugin 【need add VOYAGE_API_KEY in Claudian plugin's variables】 
 # echo -e "\n DEBUG: REQUIRED_KEY: $REQUIRED_KEY\n" >> "$MEMORY_FILE"
 # echo -e "\n DEBUG: KEY_MISSING: $KEY_MISSING\n" >> "$MEMORY_FILE"
 # echo -e "\n DEBUG: PROVIDER: $PROVIDER\n" >> "$MEMORY_FILE"
