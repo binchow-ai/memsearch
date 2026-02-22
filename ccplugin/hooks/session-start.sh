@@ -42,8 +42,7 @@ if [ -n "$REQUIRED_KEY" ] && [ -z "${!REQUIRED_KEY:-}" ]; then
   KEY_MISSING=true
 fi
 
-echo -e "\n DEBUG: REQUIRED_KEY: $REQUIRED_KEY\n" >> "$MEMORY_FILE"
-echo -e "\n DEBUG: KEY_MISSING: $KEY_MISSING\n" >> "$MEMORY_FILE"
+
 
 # Check PyPI for newer version (2s timeout, non-blocking on failure)
 UPDATE_HINT=""
@@ -68,6 +67,17 @@ TODAY=$(date +%Y-%m-%d)
 NOW=$(date +%H:%M)
 MEMORY_FILE="$MEMORY_DIR/$TODAY.md"
 echo -e "\n## Session $NOW\n" >> "$MEMORY_FILE"
+
+# Debug logging
+echo -e "\n DEBUG: REQUIRED_KEY: $REQUIRED_KEY\n" >> "$MEMORY_FILE"
+echo -e "\n DEBUG: KEY_MISSING: $KEY_MISSING\n" >> "$MEMORY_FILE"
+echo -e "\n DEBUG: PROVIDER: $PROVIDER\n" >> "$MEMORY_FILE"
+echo -e "\n DEBUG: MODEL: $MODEL\n" >> "$MEMORY_FILE"
+echo -e "\n DEBUG: MILVUS_URI: $MILVUS_URI\n" >> "$MEMORY_FILE"
+echo -e "\n DEBUG: VERSION: $VERSION\n" >> "$MEMORY_FILE"
+echo -e "\n DEBUG: VERSION_TAG: $VERSION_TAG\n" >> "$MEMORY_FILE"
+echo -e "\n DEBUG: status: $status\n" >> "$MEMORY_FILE"
+# End debug logging
 
 # If API key is missing, show status and exit early (watch/search would fail)
 if [ "$KEY_MISSING" = true ]; then
