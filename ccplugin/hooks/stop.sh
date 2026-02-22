@@ -114,6 +114,10 @@ fi
 } >> "$MEMORY_FILE"
 
 # Index immediately — don't rely on watch (which may be killed by SessionEnd before debounce fires)
+echo "[DEBUG] $(date): Running memsearch index $MEMORY_DIR" >> .memsearch/debug.log  
+
 run_memsearch index "$MEMORY_DIR"
+
+echo "[DEBUG] $(date): memsearch index exit code: $?" >> .memsearch/debug.log
 
 echo '{}'

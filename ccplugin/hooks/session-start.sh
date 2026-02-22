@@ -70,6 +70,7 @@ echo -e "\n## Session $NOW\n" >> "$MEMORY_FILE"
 if [ "$KEY_MISSING" = true ]; then
   json_status=$(_json_encode_str "$status")
   echo "{\"systemMessage\": $json_status}"
+  echo -e "\n DEBUG: API key missing, memory search disabled\n" >> "$MEMORY_FILE"
   exit 0
 fi
 
@@ -83,6 +84,7 @@ json_status=$(_json_encode_str "$status")
 # If memory dir has no .md files (other than the one we just created), nothing to inject
 if [ ! -d "$MEMORY_DIR" ] || ! ls "$MEMORY_DIR"/*.md &>/dev/null; then
   echo "{\"systemMessage\": $json_status}"
+  echo -e "\n DEBUG: Memory dir has no .md files, nothing to inject\n" >> "$MEMORY_FILE"
   exit 0
 fi
 
