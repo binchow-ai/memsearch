@@ -74,14 +74,16 @@ print(uuid)
 " "$TRANSCRIPT_PATH" 2>/dev/null || true)
 
 # Use claude -p to summarize the parsed transcript into concise bullet points.
-# --model haiku: cheap and fast model for summarization
+# Model: from config compact.llm_model, fallback to haiku when unset
 # --no-session-persistence: don't save this throwaway session to disk
 # --no-chrome: skip browser integration
 # --system-prompt: separate role instructions from data (transcript via stdin)
+SUMMARY_MODEL=$($MEMSEARCH_CMD config get compact.llm_model 2>/dev/null || echo "")
+[ -z "$SUMMARY_MODEL" ] && SUMMARY_MODEL="haiku"
 SUMMARY=""
 if command -v claude &>/dev/null; then
   SUMMARY=$(printf '%s' "$PARSED" | claude -p \
-    --model haiku \
+    --model "$SUMMARY_MODEL" \
     --no-session-persistence \
     --no-chrome \
     --system-prompt "You are a session memory writer. Your ONLY job is to output bullet-point summaries. Output NOTHING else — no greetings, no questions, no offers to help, no preamble, no closing remarks.
